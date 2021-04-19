@@ -24,6 +24,12 @@ class VideoCamera(object):
         ret, jpeg = cv2.imencode('.jpg', frame)
         return jpeg.tobytes()
 
+    def save_frame(self, route):
+        frame = self.flip_if_needed(self.vs.read())
+        path = 'images/' + route
+        print(path)
+        ret = cv2.imwrite(path, frame)
+
     def get_object(self, classifier):
         found_objects = False
         frame = self.flip_if_needed(self.vs.read()).copy()
