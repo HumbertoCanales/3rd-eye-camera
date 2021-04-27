@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import cv2
 import sys
 from flask import Flask, render_template, Response
@@ -22,7 +24,7 @@ values_interval = 120
 
 video_camera = VideoCamera(flip=True)
 object_classifier = cv2.CascadeClassifier(
-    "models/facial_recognition_model.xml")
+    "/home/pi/Desktop/Integradora/Camera/models/facial_recognition_model.xml")
 
 # App Globals (do not edit)
 app = Flask(__name__)
@@ -32,9 +34,9 @@ last_found = 0
 last_pres = 0
 last_values = 0
 
-api_url = 'http://192.168.100.13:3333/v1/api/'
+api_url = 'http://23.21.161.238/v1/api/'
 default_name = 'SECURITY CAMERA'
-code = 'L12UL74M44J7418'
+code = 'HOLAPROFES'  # 'L12UL74M44J7418'
 
 sensors = Sensors()
 http = Http(api_url, default_name, code)
@@ -84,12 +86,20 @@ def check_for_objects():
         frame, found_obj = video_camera.get_object(object_classifier)
         presence = sensors.getPIR()
         if found_obj and (time.time() - last_found) > photo_interval:
+            date = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
+            filename = "_".join(["image", date])
+            route = filename + str(uuid.uuid4()) + ".jpg"
+            distance = sensors.getDistance()
             try:
-                distance = sensors.getDistance()
-                http.saveImage(frame, 1, distance)
+                http.saveImage(frame, 1, distance, route)
                 print("Person image saved!")
             except:
-                print("Error sending image: ", sys.exc_info()[0])
+                print("Error sending image, now saving locally: ",
+                      sys.exc_info()[0])
+                video_camera.save_frame(route)
+                image = Image(route, datetime.datetime.now(
+                ).astimezone().isoformat(), distance, 1)
+                db.addRegistro("images", image)
             last_found = time.time()
         elif presence and (time.time() - last_pres) > photo_interval:
             date = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
@@ -110,7 +120,7 @@ def check_for_objects():
         if (time.time() - last_values) > values_interval:
             try:
                 dht = sensors.getTempHum()
-                value = Value(dht[0], dht[1],
+                value = Value(dht[1], dht[0],
                               datetime.datetime.now().astimezone().isoformat())
                 try:
                     http.saveValues(value.temperature, value.humidity)
@@ -141,7 +151,8 @@ def video():
 
 def gen(camera):
     while True:
-        frame, found_obj = video_camera.get_object(object_classifier)
+        #frame, found_obj = video_camera.get_object(object_classifier)
+        frame = camera.get_frame()
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
 
